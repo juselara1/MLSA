@@ -41,10 +41,10 @@ with h5py.File("/tf/TCGA/images.h5", "w") as df:
         print(f"Saving partition {partition} with labels {labels_name}:")
         cont = 0
         for gleason, gl_path in enumerate(subdirs):
-            for patient_id in os.listdir(partition_paths[partition]+gl_path):
-                for im_path in os.listdir(partition_paths[partition]+gl_path+patient_id):
+            for patient_id in os.listdir(os.path.join(partition_paths[partition], gl_path)):
+                for im_path in os.listdir(os.path.join(partition_paths[partition], gl_path, patient_id)):
                     # Loading and saving image
-                    df[partition][cont] = np.array(load_img(partition_paths[partition]+gl_path+patient_id+im_path))
+                    df[partition][cont] = np.array(load_img(os.path.join(partition_paths[partition], gl_path, patient_id, im_path)))
                     # Saving label
                     df[labels_name][cont] = gleason
                     # Saving patient id
