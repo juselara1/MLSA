@@ -48,7 +48,6 @@ with h5py.File("/tf/TCGA/images.h5", "w") as df:
                     # Saving label
                     df[labels_name][cont] = gleason
                     # Saving patient id
-                    cur_id = '-'.join(patient_id.split('-')[:3])
-                    df[id_name][cont] = cur_id
+                    df[id_name][cont] = patient_id
                     cont +=1
                     print(f"{cont}/{partition_lengths[partition]}\t{cur_id}", end="\r")
