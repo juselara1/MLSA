@@ -1,0 +1,13 @@
+,97
+rbf_im,3.2778853272501265
+chi_im,0.03924072606624415
+rbf_txt,0.001781770679941845
+chi_txt,0.00187109895263082
+latent_dim,800
+align,manhattan
+activation,linear
+units,32
+codebook,1700
+ngram,2
+visual_kernel,chi2
+text_kernel,linear

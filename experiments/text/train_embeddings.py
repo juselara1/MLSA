@@ -15,14 +15,12 @@ for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
 
 # Function to get the id of each image
-def get_ordered_uniques(ids, labs):
-    uniques = []
-    labels = []
-    prev = 0
-    for i in range(ids.size):
-        if ids[i]!=prev: uniques.append(ids[i]); labels.append(labs[i])
-        prev = ids[i]
-    return uniques, np.array(labels)
+def get_ordered_uniques(ids, y_full):
+    uniques = np.unique(ids)
+    y = np.zeros((uniques.size, ))
+    for i, patient in enumerate(uniques):
+        y[i] = y_full[ids==patient][0]
+    return uniques, y
 
 def get_reports_names(reports_paths, id_unique):
     paths = []
@@ -42,6 +40,7 @@ def load_corpus(paths):
     return corpus
 
 def preprocessing(doc):
+    """
     res = re.sub(r"(\d)\s*.\s*(\d)", r"\1.\2", doc)
     res = re.sub(r"(\d)\s*\.\s*(\d)", r"\1.\2", res)
     res = re.sub(r"(\d)\s*[x|X]\s*(\d)", r"\1x\2", res)
@@ -55,6 +54,8 @@ def preprocessing(doc):
     res = re.sub(r"\s[a-zA-Z]\s", r" ", res)
     res = " ".join([token for token in res.split(" ") if token not in stop_words and len(token)<10])
     res = res.lower()
+    """
+    res = doc.lower()
     return res
 
 def create_model(units, act, dim):
@@ -72,71 +73,27 @@ def create_model(units, act, dim):
                   metrics=["accuracy"])
     return model
 
-def train_ngram(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test):
-    names = ["ngram", "Accuracy", "Precision", "F1", "Recall"]
-    print("".join([f'{val:20}' for val in names]))
-    for ngram in range(1, 8):
-        cv = CountVectorizer(max_df=0.5, min_df=0.01, ngram_range=(1, ngram))
-        cv.fit(full_corpus)
-
-        X_train = cv.transform(train_corpus).toarray()
-        X_val = cv.transform(val_corpus).toarray()
-        X_train2 = np.concatenate([X_train, X_val], axis=0)
-        y_train2 = np.concatenate([y_train, y_val])
-        X_test = cv.transform(test_corpus).toarray()
-
-        Y_train2 = tf.keras.utils.to_categorical(y_train2)
+def train_ngram(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test, save_path):
+    with h5py.File(save_path, "w") as df:
+        df[f"y_train"] = y_train
+        df[f"y_val"] = y_val
+        df[f"y_test"] = y_test
+            
         Y_train = tf.keras.utils.to_categorical(y_train)
         Y_val = tf.keras.utils.to_categorical(y_val)
         Y_test = tf.keras.utils.to_categorical(y_test)
-        acc = []; prec = []; f1 = []; rec = []
-        for i in range(10):
-            model = create_model(32, "relu", X_train.shape[1])
-            cb = tf.keras.callbacks.ModelCheckpoint("bow_ann.h5")
-            model.fit(X_train, Y_train, validation_data=(X_val, Y_val), callbacks=[cb], epochs=100,
-                      batch_size=16, verbose=0)
-            model.load_weights("bow_ann.h5")
 
-            preds = model.predict(X_test)
-            y_pred = np.argmax(preds, axis=1)
-            acc.append(accuracy_score(y_test, y_pred))
-            prec.append(precision_score(y_test, y_pred, average="weighted"))
-            f1.append(f1_score(y_test, y_pred, average="weighted"))
-            rec.append(recall_score(y_test, y_pred, average="weighted"))
-        print(f'{ngram:<20}'+"".join(map(lambda i:f'{i:20}',[f'{avg:.4f}'+u"\u00B1"+f'{std:.4f}' for avg, std in zip([np.mean(acc), np.mean(prec), np.mean(f1), np.mean(rec)], [np.std(acc), np.std(prec), np.std(f1), np.std(rec)])])))  
-    
-def train_tfidf(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test):
-    names = ["ngram", "Accuracy", "Precision", "F1", "Recall"]
-    print("".join([f'{val:20}' for val in names]))
-    for ngram in range(1, 8):
-        cv = TfidfVectorizer(max_df=0.5, min_df=0.01, ngram_range=(1, ngram), sublinear_tf=True)
-        cv.fit(full_corpus)
+        for ngram in range(1, 8):
+            cv = CountVectorizer(max_df=0.5, min_df=0.01, ngram_range=(1, ngram))
+            cv.fit(full_corpus)
 
-        X_train = cv.transform(train_corpus).toarray()
-        X_val = cv.transform(val_corpus).toarray()
-        X_train2 = np.concatenate([X_train, X_val], axis=0)
-        y_train2 = np.concatenate([y_train, y_val])
-        X_test = cv.transform(test_corpus).toarray()
-
-        Y_train2 = tf.keras.utils.to_categorical(y_train2)
-        Y_train = tf.keras.utils.to_categorical(y_train)
-        Y_val = tf.keras.utils.to_categorical(y_val)
-        Y_test = tf.keras.utils.to_categorical(y_test)
-        acc = []; prec = []; f1 = []; rec = []
-        for i in range(10):
-            model = create_model(32, "relu", X_train.shape[1])
-            cb = tf.keras.callbacks.ModelCheckpoint("tfidf_ann.h5")
-            model.fit(X_train, Y_train, validation_data=(X_val, Y_val), callbacks=[cb], epochs=100,
-                      batch_size=16, verbose=0)
-            model.load_weights("tfidf_ann.h5")
-
-            preds = model.predict(X_test)
-            y_pred = np.argmax(preds, axis=1)
-            acc.append(accuracy_score(y_test, y_pred))
-            prec.append(precision_score(y_test, y_pred, average="weighted"))
-            f1.append(f1_score(y_test, y_pred, average="weighted"))
-            rec.append(recall_score(y_test, y_pred, average="weighted"))
-        print(f'{ngram:<20}'+"".join(map(lambda i:f'{i:20}',[f'{avg:.4f}'+u"\u00B1"+f'{std:.4f}' for avg, std in zip([np.mean(acc), np.mean(prec), np.mean(f1), np.mean(rec)], [np.std(acc), np.std(prec), np.std(f1), np.std(rec)])])))  
+            X_train = cv.transform(train_corpus).toarray()
+            X_val = cv.transform(val_corpus).toarray()
+            X_test = cv.transform(test_corpus).toarray()
+            
+            df[f"X_train{ngram}"] = X_train
+            df[f"X_val{ngram}"] = X_val
+            df[f"X_test{ngram}"] = X_test
 
 def get_masks(corpus, kmeans_model):
     masks = []
@@ -152,8 +109,16 @@ def get_masks(corpus, kmeans_model):
     return masks
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser(description='Train and evaluate a specified text representation.')
+    parser.add_argument("--repr", type=str, help="Representation to evaluate", default="ngram")
+    parser.add_argument("--images_path", type=str, help="Path for the hdf5 file of the images.", default="/tf/TCGA/images.h5")
+    parser.add_argument("--texts_path", type=str, help="Path for the diagnosis reports.", default="/tf/TCGA/reports_txt")
+    parser.add_argument("--save_path", type=str, help="Path to save the text representations.", default="ngram")
+    args = parser.parse_args()
+    os.system("clear")
+    
     # Get patient id for each document
-    with h5py.File("/tf/TCGA/images.h5", "r") as df:
+    with h5py.File(args.images_path, "r") as df:
         train_id = df["id_train"][:]
         y_train_full = df["y_train"][:]
         val_id = df["id_val"][:]
@@ -164,7 +129,7 @@ if __name__=="__main__":
     train_id_unique, y_train = get_ordered_uniques(train_id, y_train_full)
     val_id_unique, y_val = get_ordered_uniques(val_id, y_val_full)
     test_id_unique, y_test = get_ordered_uniques(test_id, y_test_full)
-    reports_paths = glob.glob("/tf/TCGA/reports_txt/*")
+    reports_paths = glob.glob(f"{args.texts_path}/*")
     
     train_paths = get_reports_names(reports_paths, train_id_unique)
     val_paths = get_reports_names(reports_paths, val_id_unique)
@@ -181,16 +146,9 @@ if __name__=="__main__":
     full_corpus = []
     for corpus in [train_corpus, val_corpus, test_corpus]:
         full_corpus.extend(corpus)
-        
-    parser = argparse.ArgumentParser(description='Train and evaluate a specified text representation.')
-    parser.add_argument("--repr", type=str, help="Representation to evaluate", default="ngram")
-    args = parser.parse_args()
-    os.system("clear")
     
     if args.repr=="ngram":
-        train_ngram(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test)
-    elif args.repr=="tfidf":
-        train_tfidf(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test)
+        train_ngram(train_corpus, y_train, val_corpus, y_val, test_corpus, y_test, args.save_path)
     elif args.repr=="bioword2vec":
         # Load BioWord2Vec Model
         model = KeyedVectors.load_word2vec_format("/tf/TCGA/embedding_models/bioword2vec.bin", binary=True)

@@ -1,0 +1,13 @@
+,41
+rbf_im,79.81527604500567
+chi_im,2.6498016706379484
+rbf_txt,0.0011139259893956446
+chi_txt,0.001202082275041248
+latent_dim,1000
+align,cosine
+activation,relu
+units,32
+codebook,1700
+ngram,2
+visual_kernel,linear
+text_kernel,cosine
